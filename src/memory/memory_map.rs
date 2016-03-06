@@ -1,5 +1,5 @@
 use super::Memory;
-use super::ram::Ram;
+use super::random_access_memory::RandomAccessMemory;
 
 const BOOTROM_START: u16 = 0x0000;
 const BOOTROM_SIZE: u16 = 0xFF;
@@ -16,14 +16,14 @@ enum Address {
 
 pub struct MemoryMap {
   pub bootrom: Box<[u8]>,
-  pub ram: Ram,
+  pub ram: RandomAccessMemory,
 }
 
 impl MemoryMap {
   pub fn new(bootrom: Box<[u8]>) -> MemoryMap {
     MemoryMap {
       bootrom: bootrom,
-      ram: Ram::new(),
+      ram: RandomAccessMemory::new(),
     }
   }
 
@@ -43,6 +43,9 @@ impl MemoryMap {
 }
 
 impl Memory for MemoryMap {
+  type B = u16;
+  type W = u16;
+
   fn read_byte(&mut self, address: u16) -> u8 {
     match self.map_address(address) {
       Address::Bootrom(offset) => self.bootrom[offset as usize],
@@ -52,7 +55,7 @@ impl Memory for MemoryMap {
 
   fn write_byte(&mut self, address: u16, value: u8) {
     match self.map_address(address) {
-      Address::Bootrom(offset) => self.bootrom[offset as usize] = value,
+      Address::Bootrom(_) => panic!("Cannot write to read-only memory."),
       Address::Ram(offset) => self.ram[offset as usize] = value,
     }
   }

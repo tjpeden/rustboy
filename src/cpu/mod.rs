@@ -1,28 +1,15 @@
 mod opcode;
+mod registers;
 mod instruction;
 
 use super::memory::Memory;
 
 use self::opcode::*;
+use self::registers::*;
 use self::instruction::Instruction;
 
-const NUM_GPR: usize = 8;
-
-// struct Registers<M: Memory> {
-//   value: [u8; NUM_GPR],
-// }
-//
-// impl<M: Memory> Registers<M> {
-//   pub fn new() -> Registers<M> {
-//     Registers {
-//       value: [0; NUM_GPR],
-//     }
-//   }
-// }
-
 pub struct Cpu<M: Memory> {
-  // registers: Registers, // General Purpose Registers
-  pc: u16, // Program Counter
+  registers: Registers, // General Purpose Registers
 
   memory: M,
 }
@@ -30,42 +17,63 @@ pub struct Cpu<M: Memory> {
 impl<M: Memory> Cpu<M> {
   pub fn new(memory: M) -> Cpu<M> {
     Cpu {
-      // registers: [0; NUM_GPR],
-      pc: 0,
+      registers: Registers::new(),
 
       memory: memory,
     }
   }
 
-  pub fn run(&mut self) {
-    loop {
-      self.execute_instruction()
-    }
+  pub fn step(&mut self) {
+    let instruction = self.read_instruction();
+
+    self.execute_instruction(instruction);
   }
 
-  fn execute_instruction(&mut self) {
-    let pc = self.pc;
-    let instruction = self.read_instruction(pc);
+  fn read_instruction(&mut self) -> Instruction {
+    let pc = self.registers.read_pc();
 
-    println!("PC: {:#06x}: {:?}", self.pc, instruction);
+    let instruction = Instruction(self.memory.read_byte(M::B::from(pc)));
 
-    self.pc += 1;
-    self.interpret_instruction(instruction);
+    println!("PC: {:#06x}: {:?}", pc, instruction);
+
+    self.registers.increment_pc_byte();
+
+    instruction
   }
 
-  fn read_instruction(&mut self, address: u16) -> Instruction {
-    Instruction(self.memory.read_byte(address))
+  fn read_immediate_byte(&mut self) -> u8 {
+    let pc = self.registers.read_pc();
+    let immediate = self.memory.read_byte(M::B::from(pc));
+
+    self.registers.increment_pc_byte();
+
+    immediate
   }
 
-  fn interpret_instruction(&mut self, instruction: Instruction) {
+  fn read_immediate_word(&mut self) -> u16 {
+    let pc = self.registers.read_pc();
+    let immediate = self.memory.read_word(M::W::from(pc));
+
+    self.registers.increment_pc_word();
+
+    immediate
+  }
+
+  fn execute_instruction(&mut self, instruction: Instruction) {
     match instruction.opcode() {
-      Opcode::LoadSPI16 => {
+      Opcode::LoadHL => {
+        let immediate = self.read_immediate_word();
+
+        self.registers.write_word(REG_HL, immediate);
+      },
+      Opcode::LoadSP =>
+      {
         // Ignore SP commands
-        self.pc += 2;
+        let _ = self.read_immediate_word();
       },
       Opcode::XorA => {
-        // let a = self.registers[Register::A];
-        // self.registers[Register::A] = a ^ a;
+        let a = self.registers.read_byte(REG_A);
+        self.registers.write_byte(REG_A, a ^ a);
       }
     }
   }

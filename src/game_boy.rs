@@ -8,14 +8,15 @@ pub struct GameBoy {
 impl GameBoy {
   pub fn new(bootrom: Box<[u8]>) -> GameBoy {
     let memory_map = MemoryMap::new(bootrom);
-    let cpu = cpu::Cpu::new(memory_map);
 
     GameBoy {
-      cpu: cpu,
+      cpu: cpu::Cpu::new(memory_map),
     }
   }
 
   pub fn run(&mut self) {
-    self.cpu.run();
+    loop {
+      self.cpu.step();
+    }
   }
 }

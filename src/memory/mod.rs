@@ -1,19 +1,24 @@
-mod ram;
+mod random_access_memory;
 mod memory_map;
 
-pub use self::ram::Ram;
+use std::ops;
+
+pub use self::random_access_memory::RandomAccessMemory;
 pub use self::memory_map::MemoryMap;
 
 pub trait Memory {
-  fn read_byte(&mut self, address: u16) -> u8;
-  fn write_byte(&mut self, address: u16, value: u8);
+  type B: From<Self::W> + From<u16>;
+  type W: ops::Add<Output=Self::W> + From<u16> + Copy;
 
-  fn read_word(&mut self, address: u16) -> u16 {
-    self.read_byte(address) as u16 | (self.read_byte(address + 1) as u16) << 8
+  fn read_byte(&mut self, address: Self::B) -> u8;
+  fn read_word(&mut self, address: Self::W) -> u16 {
+    self.read_byte(Self::B::from(address)) as u16 |
+    (self.read_byte(Self::B::from(address + Self::W::from(1))) as u16) << 8
   }
 
-  fn write_word(&mut self, address: u16, value: u16) {
-    self.write_byte(address, (value & 0xFF) as u8);
-    self.write_byte(address + 1, ((value >> 8) & 0xFF) as u8);
+  fn write_byte(&mut self, address: Self::B, value: u8);
+  fn write_word(&mut self, address: Self::W, value: u16) {
+    self.write_byte(Self::B::from(address), (value & 0xFF) as u8);
+    self.write_byte(Self::B::from(address + Self::W::from(1)), ((value >> 8) & 0xFF) as u8);
   }
 }
