@@ -90,12 +90,8 @@ impl Registers {
     self.pc
   }
 
-  pub fn increment_pc_byte(&mut self) {
-    self.pc += 1;
-  }
-
-  pub fn increment_pc_word(&mut self) {
-    self.pc += 2;
+  pub fn increment_pc(&mut self, value: i16) {
+    self.pc = (self.pc as i16 + value) as u16;
   }
 }
 

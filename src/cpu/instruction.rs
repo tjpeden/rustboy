@@ -10,10 +10,6 @@ impl Instruction {
   pub fn opcode(&self) -> Opcode {
     Opcode::from_u8(self.0).unwrap_or_else(|| panic!("Unrecognized instruction: {:#06x}", self.0))
   }
-
-  pub fn specialOpcode(&self) -> SpecialOpcode {
-    SpecialOpcode::from_u8(self.0).unwrap_or_else(|| panic!("Unrecognized special instruction: {:#06x}", self.0))
-  }
 }
 
 impl fmt::Debug for Instruction {

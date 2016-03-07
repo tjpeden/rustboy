@@ -1,12 +1,17 @@
 enum_from_primitive! {
   #[derive(Debug)]
   pub enum Opcode {
+    // Jumps
+    JumpNZ = 0x20,
+
     // 8-bit load
-    LoadHLDecA = 0x32,
+    LoadC = 0x0E,
+    LoadA = 0x3E,
+    LoadDecHlA = 0x32,
 
     // 16-bit load
-    LoadHL = 0x21,
-    LoadSP = 0x31,
+    LoadHl = 0x21,
+    LoadSp = 0x31,
 
     // 8-bit math
     XorA = 0xAF,
