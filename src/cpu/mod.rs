@@ -2,16 +2,11 @@ mod opcode;
 mod registers;
 mod instruction;
 
-use super::memory::Memory;
+use super::memory::{Memory, IO_BASE_REG};
 
 use self::opcode::*;
 use self::registers::*;
 use self::instruction::*;
-
-const FLAG_Z: u8 = 0x80;
-const FLAG_N: u8 = 0x40;
-const FLAG_H: u8 = 0x20;
-const FLAG_C: u8 = 0x10;
 
 pub struct Cpu<M: Memory> {
   registers: Registers, // General Purpose Registers
@@ -83,27 +78,34 @@ impl<M: Memory> Cpu<M> {
   fn execute_instruction(&mut self, instruction: Instruction) {
     match instruction.opcode() {
       Opcode::JumpNZ => {
-        let f = self.registers.read_byte(REG_F);
         let offset = self.read_immediate_byte();
 
-        if (f & FLAG_Z) != FLAG_Z {
+        if !self.registers.get_flag(ZERO) {
           self.registers.increment_pc((offset as i8) as i16);
         }
       }
 
-      Opcode::LoadC => {
+      Opcode::LoadAddrDeIntoA => {
+        let de = self.registers.read_word(REG_DE);
+        let address = M::B::from(de);
+        let value = self.memory.read_byte(address);
+
+        self.registers.write_byte(REG_A, value);
+      }
+
+      Opcode::LoadImmIntoC => {
         let value = self.read_immediate_byte();
 
         self.registers.write_byte(REG_C, value);
       }
 
-      Opcode::LoadA => {
+      Opcode::LoadImmIntoA => {
         let value = self.read_immediate_byte();
 
         self.registers.write_byte(REG_A, value);
       }
 
-      Opcode::LoadDecHlA => {
+      Opcode::LoadAIntoHlAndDec => {
         let hl = self.registers.read_word(REG_HL);
         let address = M::B::from(hl);
         let value = self.memory.read_byte(address);
@@ -112,21 +114,64 @@ impl<M: Memory> Cpu<M> {
         self.registers.write_word(REG_HL, hl - 1);
       }
 
-      Opcode::LoadHl => {
+      Opcode::LoadAIntoAddrC => {
+        let a = self.registers.read_byte(REG_A);
+        let c = self.registers.read_byte(REG_C);
+        let address = M::B::from(IO_BASE_REG + c as u16);
+
+        self.memory.write_byte(address, a);
+      }
+
+      Opcode::LoadAIntoAddrHl => {
+        let a = self.registers.read_byte(REG_A);
+        let hl = self.registers.read_word(REG_HL);
+        let address = M::B::from(hl);
+
+        self.memory.write_byte(address, a);
+      }
+
+      Opcode::LoadAIntoAddrImm => {
+        let a = self.registers.read_byte(REG_A);
+        let value = self.read_immediate_byte();
+        let address = M::B::from(IO_BASE_REG + value as u16);
+
+        self.memory.write_byte(address, a);
+      }
+
+      Opcode::LoadImmIntoDe => {
+        let immediate = self.read_immediate_word();
+
+        self.registers.write_word(REG_DE, immediate);
+      }
+
+      Opcode::LoadImmIntoHl => {
         let immediate = self.read_immediate_word();
 
         self.registers.write_word(REG_HL, immediate);
       }
 
-      Opcode::LoadSp =>
+      Opcode::LoadImmIntoSp =>
       {
         // Ignore SP commands
         self.registers.increment_pc(2);
       }
 
+      Opcode::IncrementC => {
+        let c = self.registers.read_byte(REG_C);
+        let value = c + 1;
+
+        self.registers.set_flag(ZERO, value == 0);
+        self.registers.set_flag(SUBTRACT, false);
+        self.registers.set_flag(HALF_CARRY, ((c & 0xF) + 1) & 0x10 == 0x10);
+        self.registers.write_byte(REG_C, value);
+      }
+
       Opcode::XorA => {
         let a = self.registers.read_byte(REG_A);
-        self.registers.write_byte(REG_A, a ^ a);
+        let value = a ^ a;
+
+        self.registers.set_flag(ZERO, value == 0);
+        self.registers.write_byte(REG_A, value);
       }
 
       Opcode::Special => {
@@ -140,12 +185,11 @@ impl<M: Memory> Cpu<M> {
   fn execute_special_instruction(&mut self, special_instruction: SpecialInstruction) {
     match special_instruction.opcode() {
       SpecialOpcode::Bit7H => {
-        let f = self.registers.read_byte(REG_F);
         let h = self.registers.read_byte(REG_H);
-        let c = f & FLAG_C;
-        let z = FLAG_Z - (h & FLAG_Z);
 
-        self.registers.write_byte(REG_F, z + FLAG_H + c); // => 0bz01c0000
+        self.registers.set_flag(ZERO, (h & 0x80) == 0);
+        self.registers.set_flag(SUBTRACT, false);
+        self.registers.set_flag(HALF_CARRY, true);
       }
     }
   }

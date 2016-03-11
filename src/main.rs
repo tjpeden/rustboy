@@ -6,6 +6,7 @@ extern crate enum_primitive;
 mod cpu;
 mod game_boy;
 mod memory;
+mod io_ports;
 
 use std::env;
 use std::fs;

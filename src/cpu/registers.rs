@@ -73,6 +73,11 @@ pub const REG_BC: WordRegister = WordRegister(REG_B_INDEX);
 pub const REG_DE: WordRegister = WordRegister(REG_D_INDEX);
 pub const REG_HL: WordRegister = WordRegister(REG_H_INDEX);
 
+pub const ZERO: u8 = 0x80;
+pub const SUBTRACT: u8 = 0x40;
+pub const HALF_CARRY: u8 = 0x20;
+pub const CARRY: u8 = 0x10;
+
 pub struct Registers {
   value: [u8; NUM_GPR],
   pc: u16,
@@ -93,6 +98,34 @@ impl Registers {
   pub fn increment_pc(&mut self, value: i16) {
     self.pc = (self.pc as i16 + value) as u16;
   }
+
+  pub fn get_flag(&mut self, flag: u8) -> bool {
+    let f = self.read_byte(REG_F);
+
+    (f & flag) != 0
+  }
+
+  pub fn set_flag(&mut self, flag: u8, on: bool) {
+    let mut f = self.read_byte(REG_F);
+
+    if on {
+      f |= flag;
+    } else {
+      f &= !flag;
+    }
+
+    self.write_byte(REG_F, f);
+  }
+
+  // pub fn get_flags(&mut self) -> u8 {
+  //   self.read_byte(REG_F)
+  // }
+  //
+  // pub fn set_flags(&mut self, flags: u8) {
+  //   let f = flags & 0xF0;
+  //
+  //   self.write_byte(REG_F, f);
+  // }
 }
 
 impl Memory for Registers {

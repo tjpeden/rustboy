@@ -5,6 +5,7 @@ use std::ops;
 
 pub use self::random_access_memory::RandomAccessMemory;
 pub use self::memory_map::MemoryMap;
+pub use self::memory_map::IO_BASE_REG;
 
 pub trait Memory {
   type B: From<Self::W> + From<u16>;

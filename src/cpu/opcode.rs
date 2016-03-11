@@ -5,15 +5,21 @@ enum_from_primitive! {
     JumpNZ = 0x20,
 
     // 8-bit load
-    LoadC = 0x0E,
-    LoadA = 0x3E,
-    LoadDecHlA = 0x32,
+    LoadAddrDeIntoA = 0x1A,
+    LoadImmIntoC = 0x0E,
+    LoadImmIntoA = 0x3E,
+    LoadAIntoHlAndDec = 0x32,
+    LoadAIntoAddrC = 0xE2,
+    LoadAIntoAddrHl = 0x77,
+    LoadAIntoAddrImm = 0xE0,
 
     // 16-bit load
-    LoadHl = 0x21,
-    LoadSp = 0x31,
+    LoadImmIntoDe = 0x11,
+    LoadImmIntoHl = 0x21,
+    LoadImmIntoSp = 0x31,
 
     // 8-bit math
+    IncrementC = 0x0C,
     XorA = 0xAF,
 
     Special = 0xCB,

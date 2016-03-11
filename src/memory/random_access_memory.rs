@@ -1,15 +1,13 @@
 use super::Memory;
 
-use std::ops::{Index, IndexMut};
-
 pub struct RandomAccessMemory {
   data: Vec<u8>,
 }
 
 impl RandomAccessMemory {
-  pub fn new() -> Self {
+  pub fn new(size: usize) -> Self {
     RandomAccessMemory {
-      data: Vec::new(),
+      data: vec![0; size],
     }
   }
 }
@@ -23,6 +21,7 @@ impl Memory for RandomAccessMemory {
   }
 
   fn write_byte(&mut self, address: u16, value: u8) {
+    println!("Writing {:#04x} to {:#06x}", value, address);
     self.data[address as usize] = value;
   }
 }
