@@ -1,6 +1,7 @@
 #[derive(Default)]
 pub struct IOPorts;
 
+#[allow(dead_code)]
 impl IOPorts {
   pub fn read_nr_11(&self) -> u8 {
     unimplemented!()

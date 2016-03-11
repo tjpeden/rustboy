@@ -20,7 +20,7 @@ fn main() {
   let bootrom = read_binary(bootrom_name);
   let gamerom = read_binary(gamerom_name);
 
-  let mut game_boy = game_boy::GameBoy::new(bootrom);
+  let mut game_boy = game_boy::GameBoy::new(bootrom, gamerom);
 
   game_boy.run();
 }

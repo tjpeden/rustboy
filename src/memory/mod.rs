@@ -11,8 +11,8 @@ pub trait Memory {
   type B: From<Self::W> + From<u16>;
   type W: ops::Add<Output=Self::W> + From<u16> + Copy;
 
-  fn read_byte(&mut self, address: Self::B) -> u8;
-  fn read_word(&mut self, address: Self::W) -> u16 {
+  fn read_byte(&self, address: Self::B) -> u8;
+  fn read_word(&self, address: Self::W) -> u16 {
     self.read_byte(Self::B::from(address)) as u16 |
     (self.read_byte(Self::B::from(address + Self::W::from(1))) as u16) << 8
   }

@@ -2,6 +2,8 @@ mod opcode;
 mod registers;
 mod instruction;
 
+use std::fmt;
+
 use super::memory::{Memory, IO_BASE_REG};
 
 use self::opcode::*;
@@ -30,49 +32,65 @@ impl<M: Memory> Cpu<M> {
   }
 
   fn read_instruction(&mut self) -> Instruction {
-    let pc = self.registers.read_pc();
+    let pc = self.registers.get_program_counter();
     let address = M::B::from(pc);
 
     let instruction = Instruction(self.memory.read_byte(address));
 
     println!("PC: {:#06x}: {:?}", pc, instruction);
 
-    self.registers.increment_pc(1);
+    self.registers.increment_program_counter(1);
 
     instruction
   }
 
   fn read_special_instruction(&mut self) -> SpecialInstruction {
-    let pc = self.registers.read_pc();
+    let pc = self.registers.get_program_counter();
     let address = M::B::from(pc);
 
     let special_instruction = SpecialInstruction(self.memory.read_byte(address));
 
     println!("PC: {:#06x}: {:?}", pc, special_instruction);
 
-    self.registers.increment_pc(1);
+    self.registers.increment_program_counter(1);
 
     special_instruction
   }
 
   fn read_immediate_byte(&mut self) -> u8 {
-    let pc = self.registers.read_pc();
+    let pc = self.registers.get_program_counter();
     let address = M::B::from(pc);
     let immediate = self.memory.read_byte(address);
 
-    self.registers.increment_pc(1);
+    self.registers.increment_program_counter(1);
 
     immediate
   }
 
   fn read_immediate_word(&mut self) -> u16 {
-    let pc = self.registers.read_pc();
+    let pc = self.registers.get_program_counter();
     let address = M::W::from(pc);
     let immediate = self.memory.read_word(address);
 
-    self.registers.increment_pc(2);
+    self.registers.increment_program_counter(2);
 
     immediate
+  }
+
+  fn stack_push(&mut self, value: u16) {
+    let sp = self.registers.get_stack_pointer();
+    let address = M::W::from(sp - 1);
+
+    self.registers.decrement_stack_pointer(2);
+    self.memory.write_word(address, value);
+  }
+
+  fn stack_pop(&mut self) -> u16 {
+    let sp = self.registers.get_stack_pointer();
+    let address = M::W::from(sp + 1);
+
+    self.registers.increment_stack_pointer(2);
+    self.memory.read_word(address)
   }
 
   fn execute_instruction(&mut self, instruction: Instruction) {
@@ -80,9 +98,29 @@ impl<M: Memory> Cpu<M> {
       Opcode::JumpNZ => {
         let offset = self.read_immediate_byte();
 
-        if !self.registers.get_flag(ZERO) {
-          self.registers.increment_pc((offset as i8) as i16);
+        if !self.registers.get_flag(ZERO_FLAG) {
+          self.registers.increment_program_counter((offset as i8) as i16);
         }
+      }
+
+      Opcode::CallAddrImm => {
+        let pc = self.registers.get_program_counter();
+        let value = self.read_immediate_word();
+
+        self.stack_push(pc);
+        self.registers.set_program_counter(value);
+      }
+
+      Opcode::Return => {
+        let value = self.stack_pop();
+
+        self.registers.set_program_counter(value);
+      }
+
+      Opcode::LoadAIntoC => {
+        let a = self.registers.read_byte(REG_A);
+
+        self.registers.write_byte(REG_C, a);
       }
 
       Opcode::LoadAddrDeIntoA => {
@@ -93,25 +131,40 @@ impl<M: Memory> Cpu<M> {
         self.registers.write_byte(REG_A, value);
       }
 
-      Opcode::LoadImmIntoC => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_C, value);
-      }
-
       Opcode::LoadImmIntoA => {
         let value = self.read_immediate_byte();
 
         self.registers.write_byte(REG_A, value);
       }
 
-      Opcode::LoadAIntoHlAndDec => {
+      Opcode::LoadImmIntoB => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_B, value);
+      }
+
+      Opcode::LoadImmIntoC => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_C, value);
+      }
+
+      Opcode::LoadAintoAddrHlAndInc => {
+        let a = self.registers.read_byte(REG_A);
         let hl = self.registers.read_word(REG_HL);
         let address = M::B::from(hl);
-        let value = self.memory.read_byte(address);
 
-        self.registers.write_byte(REG_A, value);
-        self.registers.write_word(REG_HL, hl - 1);
+        self.memory.write_byte(address, a);
+        self.registers.increment_word(REG_HL);
+      }
+
+      Opcode::LoadAIntoAddrHlAndDec => {
+        let a = self.registers.read_byte(REG_A);
+        let hl = self.registers.read_word(REG_HL);
+        let address = M::B::from(hl);
+
+        self.memory.write_byte(address, a);
+        self.registers.decrement_word(REG_HL);
       }
 
       Opcode::LoadAIntoAddrC => {
@@ -152,32 +205,55 @@ impl<M: Memory> Cpu<M> {
 
       Opcode::LoadImmIntoSp =>
       {
-        // Ignore SP commands
-        self.registers.increment_pc(2);
+        let address = self.read_immediate_word();
+
+        self.registers.set_stack_pointer(address);
+      }
+
+      Opcode::PushBc => {
+        let bc = self.registers.read_word(REG_BC);
+
+        self.stack_push(bc);
+      }
+
+      Opcode::PopBc => {
+        let value = self.stack_pop();
+
+        self.registers.write_word(REG_BC, value);
+      }
+
+      Opcode::DecrementB => {
+        self.registers.decrement_byte(REG_B);
       }
 
       Opcode::IncrementC => {
-        let c = self.registers.read_byte(REG_C);
-        let value = c + 1;
-
-        self.registers.set_flag(ZERO, value == 0);
-        self.registers.set_flag(SUBTRACT, false);
-        self.registers.set_flag(HALF_CARRY, ((c & 0xF) + 1) & 0x10 == 0x10);
-        self.registers.write_byte(REG_C, value);
+        self.registers.increment_byte(REG_C);
       }
 
       Opcode::XorA => {
         let a = self.registers.read_byte(REG_A);
         let value = a ^ a;
 
-        self.registers.set_flag(ZERO, value == 0);
+        self.registers.set_flag(ZERO_FLAG, value == 0);
         self.registers.write_byte(REG_A, value);
+      }
+
+      Opcode::IncrementHl => {
+        self.registers.increment_word(REG_HL);
       }
 
       Opcode::Special => {
         let special_instruction = self.read_special_instruction();
 
         self.execute_special_instruction(special_instruction);
+      }
+
+      Opcode::RotateLeftA => {
+        let a = self.registers.read_byte(REG_A);
+        let carry = self.registers.get_flag(CARRY_FLAG);
+        let value = self.shift_left(a, carry);
+
+        self.registers.write_byte(REG_A, value);
       }
     }
   }
@@ -187,10 +263,36 @@ impl<M: Memory> Cpu<M> {
       SpecialOpcode::Bit7H => {
         let h = self.registers.read_byte(REG_H);
 
-        self.registers.set_flag(ZERO, (h & 0x80) == 0);
-        self.registers.set_flag(SUBTRACT, false);
-        self.registers.set_flag(HALF_CARRY, true);
+        self.registers.set_flag(ZERO_FLAG, (h & 0x80) == 0);
+        self.registers.set_flag(SUBTRACT_FLAG, false);
+        self.registers.set_flag(HALF_CARRY_FLAG, true);
+      }
+
+      SpecialOpcode::RotateLeftC => {
+        let c = self.registers.read_byte(REG_C);
+        let carry = self.registers.get_flag(CARRY_FLAG);
+        let value = self.shift_left(c, carry);
+
+        self.registers.write_byte(REG_C, value);
       }
     }
+  }
+
+  fn shift_left(&mut self, value: u8, lsb: bool) -> u8 {
+    let carry = (value & 0x80) != 0;
+    let mut result = value << 1;
+
+    if lsb { result |= 1; }
+
+    self.registers.set_flag(ZERO_FLAG, result == 0);
+    self.registers.set_flag(CARRY_FLAG, carry);
+
+    result
+  }
+}
+
+impl<M: Memory> fmt::Debug for Cpu<M> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "CPU Registers\n{:?}", self.registers)
   }
 }
