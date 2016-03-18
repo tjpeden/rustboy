@@ -154,13 +154,13 @@ impl Registers {
 
   pub fn decrement_byte(&mut self, register: ByteRegister) {
     let ByteRegister(index) = register;
-    let previous = self.value[index];
+    let value = self.value[index];
 
-    self.set_flag(ZERO_FLAG, (previous - 1) == 0);
+    self.set_flag(ZERO_FLAG, (value.wrapping_sub(1)) == 0);
     self.set_flag(SUBTRACT_FLAG, true);
-    self.set_flag(HALF_CARRY_FLAG, ((previous & 0xF) - 1) & 0x10 != 0);
+    self.set_flag(HALF_CARRY_FLAG, ((value & 0xF).wrapping_sub(1)) & 0x10 != 0);
 
-    self.value[index] -= 1;
+    self.write_byte(register, value.wrapping_sub(1));
   }
 
   pub fn increment_word(&mut self, register: WordRegister) {

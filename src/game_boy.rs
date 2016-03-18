@@ -15,9 +15,11 @@ impl GameBoy {
   }
 
   pub fn run(&mut self) {
+    let mut tick = 0;
     loop {
       self.cpu.step();
-      print!("GameBoy:\n{:?}", self.cpu);
+      print!("GameBoy: {}\n{:?}", tick, self.cpu);
+      tick += 1;
     }
   }
 }
