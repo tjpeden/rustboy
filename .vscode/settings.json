@@ -1,0 +1,15 @@
+// Place your settings in this file to overwrite default and user settings.
+{
+    "editor.fontSize": 14,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.renderWhitespace": true,
+
+    "files.trimTrailingWhitespace": true,
+    "files.autoSave": "afterDelay",
+
+    "rust.racerPath": "C:\\Users\\PedenT\\.cargo\\bin\\racer.exe",
+    "rust.rustLangSrcPath": "C:\\Users\\PedenT\\Documents\\code\\rustc-1.7.0\\src",
+    "rust.rustfmtPath": "C:\\Users\\PedenT\\.cargo\\bin\\rustfmt.exe"//,
+    // "rust.checkOnSave": true
+}

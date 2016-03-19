@@ -10,15 +10,15 @@ use self::opcode::*;
 use self::registers::*;
 use self::instruction::*;
 
-pub struct Cpu<M: Memory> {
+pub struct Processor<M: Memory> {
   registers: Registers, // General Purpose Registers
 
   memory: M,
 }
 
-impl<M: Memory> Cpu<M> {
-  pub fn new(memory: M) -> Cpu<M> {
-    Cpu {
+impl<M: Memory> Processor<M> {
+  pub fn new(memory: M) -> Self {
+    Processor {
       registers: Registers::new(),
 
       memory: memory,
@@ -95,13 +95,25 @@ impl<M: Memory> Cpu<M> {
 
   fn execute_instruction(&mut self, instruction: Instruction) {
     match instruction.opcode() {
-      Opcode::JumpRelative => {
+      /***** Control *****/
+      Opcode::NoOp /* 0x00 */ => {
+        // No operation
+      }
+
+      Opcode::Special /* 0xCB */ => {
+        let special_instruction = self.read_special_instruction();
+
+        self.execute_special_instruction(special_instruction);
+      }
+
+      /***** Flow Control *****/
+      Opcode::JumpRelative /* 0x18 */ => {
         let offset = self.read_immediate_byte();
 
         self.registers.increment_program_counter((offset as i8) as i16);
       }
 
-      Opcode::JumpRelativeNZ => {
+      Opcode::JumpRelativeNonZero /* 0x20 */ => {
         let offset = self.read_immediate_byte();
 
         if !self.registers.get_flag(ZERO_FLAG) {
@@ -109,7 +121,7 @@ impl<M: Memory> Cpu<M> {
         }
       }
 
-      Opcode::JumpRelativeZ => {
+      Opcode::JumpRelativeZero /* 0x28 */ => {
         let offset = self.read_immediate_byte();
 
         if self.registers.get_flag(ZERO_FLAG) {
@@ -117,7 +129,13 @@ impl<M: Memory> Cpu<M> {
         }
       }
 
-      Opcode::CallAddrImm => {
+      Opcode::Return /* 0xC9 */ => {
+        let value = self.stack_pop();
+
+        self.registers.set_program_counter(value);
+      }
+
+      Opcode::CallAddrImm /* 0xCD */ => {
         let value = self.read_immediate_word();
         let pc = self.registers.get_program_counter();
 
@@ -125,37 +143,94 @@ impl<M: Memory> Cpu<M> {
         self.registers.set_program_counter(value);
       }
 
-      Opcode::Return => {
-        let value = self.stack_pop();
-
-        self.registers.set_program_counter(value);
-      }
-
-      Opcode::LoadEIntoA => {
-        let e = self.registers.read_byte(REG_E);
-
-        self.registers.write_byte(REG_A, e);
-      }
-
-      Opcode::LoadAIntoC => {
+      /***** 8-bit Load *****/
+      Opcode::LoadAIntoC /* 0x4F */ => {
         let a = self.registers.read_byte(REG_A);
 
         self.registers.write_byte(REG_C, a);
       }
 
-      Opcode::LoadAIntoD => {
+      Opcode::LoadAIntoD /* 0x57 */ => {
         let a = self.registers.read_byte(REG_A);
 
         self.registers.write_byte(REG_D, a);
       }
 
-      Opcode::LoadAIntoH => {
+      Opcode::LoadAIntoH /* 0x67 */ => {
         let a = self.registers.read_byte(REG_A);
 
         self.registers.write_byte(REG_H, a);
       }
 
-      Opcode::LoadAddrDeIntoA => {
+      Opcode::LoadEIntoA /* 0x7B */ => {
+        let e = self.registers.read_byte(REG_E);
+
+        self.registers.write_byte(REG_A, e);
+      }
+
+      Opcode::LoadImmIntoB /* 0x06 */ => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_B, value);
+      }
+
+      Opcode::LoadImmIntoC /* 0x0E */ => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_C, value);
+      }
+
+      Opcode::LoadImmIntoE /* 0x1E */ => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_E, value);
+      }
+
+      Opcode::LoadImmIntoL /* 0x2E */ => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_L, value);
+      }
+
+      Opcode::LoadImmIntoA /* 0x3E */ => {
+        let value = self.read_immediate_byte();
+
+        self.registers.write_byte(REG_A, value);
+      }
+
+      Opcode::LoadAIntoAddrC /* 0xE2 */ => {
+        let a = self.registers.read_byte(REG_A);
+        let c = self.registers.read_byte(REG_C);
+        let address = M::B::from(IO_BASE_REG + c as u16);
+
+        self.memory.write_byte(address, a);
+      }
+
+      Opcode::LoadAIntoAddrBc /* 0x02 */ => {
+        let a = self.registers.read_byte(REG_A);
+        let bc = self.registers.read_word(REG_BC);
+        let address = M::B::from(bc);
+
+        self.memory.write_byte(address, a);
+      }
+
+      Opcode::LoadAIntoAddrHl /* 0x77 */ => {
+        let a = self.registers.read_byte(REG_A);
+        let hl = self.registers.read_word(REG_HL);
+        let address = M::B::from(hl);
+
+        self.memory.write_byte(address, a);
+      }
+
+      Opcode::LoadAddrBcIntoA /* 0x0A */ => {
+        let bc = self.registers.read_word(REG_BC);
+        let address = M::B::from(bc);
+        let value = self.memory.read_byte(address);
+
+        self.registers.write_byte(REG_A, value);
+      }
+
+      Opcode::LoadAddrDeIntoA /* 0x1A */ => {
         let de = self.registers.read_word(REG_DE);
         let address = M::B::from(de);
         let value = self.memory.read_byte(address);
@@ -163,37 +238,15 @@ impl<M: Memory> Cpu<M> {
         self.registers.write_byte(REG_A, value);
       }
 
-      Opcode::LoadImmIntoA => {
-        let value = self.read_immediate_byte();
+      Opcode::LoadAIntoAddrImm /* 0xEA */ => {
+        let a = self.registers.read_byte(REG_A);
+        let value = self.read_immediate_word();
+        let address = M::B::from(value);
 
-        self.registers.write_byte(REG_A, value);
+        self.memory.write_byte(address, a);
       }
 
-      Opcode::LoadImmIntoB => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_B, value);
-      }
-
-      Opcode::LoadImmIntoC => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_C, value);
-      }
-
-      Opcode::LoadImmIntoE => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_E, value);
-      }
-
-      Opcode::LoadImmIntoL => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_L, value);
-      }
-
-      Opcode::LoadAintoAddrHlAndInc => {
+      Opcode::LoadAintoAddrHlAndInc /* 0x22 */ => {
         let a = self.registers.read_byte(REG_A);
         let hl = self.registers.read_word(REG_HL);
         let address = M::B::from(hl);
@@ -202,7 +255,7 @@ impl<M: Memory> Cpu<M> {
         self.registers.increment_word(REG_HL);
       }
 
-      Opcode::LoadAIntoAddrHlAndDec => {
+      Opcode::LoadAIntoAddrHlAndDec /* 0x32 */ => {
         let a = self.registers.read_byte(REG_A);
         let hl = self.registers.read_word(REG_HL);
         let address = M::B::from(hl);
@@ -211,31 +264,7 @@ impl<M: Memory> Cpu<M> {
         self.registers.decrement_word(REG_HL);
       }
 
-      Opcode::LoadAIntoAddrHl => {
-        let a = self.registers.read_byte(REG_A);
-        let hl = self.registers.read_word(REG_HL);
-        let address = M::B::from(hl);
-
-        self.memory.write_byte(address, a);
-      }
-
-      Opcode::LoadAIntoAddrC => {
-        let a = self.registers.read_byte(REG_A);
-        let c = self.registers.read_byte(REG_C);
-        let address = M::B::from(IO_BASE_REG + c as u16);
-
-        self.memory.write_byte(address, a);
-      }
-
-      Opcode::LoadAIntoAddrImm => {
-        let a = self.registers.read_byte(REG_A);
-        let value = self.read_immediate_word();
-        let address = M::B::from(value);
-
-        self.memory.write_byte(address, a);
-      }
-
-      Opcode::LoadAIntoAddrImmIO => {
+      Opcode::LoadAIntoAddrImmIO /* 0xE0 */ => {
         let a = self.registers.read_byte(REG_A);
         let value = self.read_immediate_byte();
         let address = M::B::from(IO_BASE_REG + value as u16);
@@ -243,7 +272,7 @@ impl<M: Memory> Cpu<M> {
         self.memory.write_byte(address, a);
       }
 
-      Opcode::LoadAddrImmIOIntoA => {
+      Opcode::LoadAddrImmIOIntoA /* 0xF0 */ => {
         let value = self.read_immediate_byte();
         let address = M::B::from(IO_BASE_REG + value as u16);
         let value = self.memory.read_byte(address);
@@ -251,58 +280,58 @@ impl<M: Memory> Cpu<M> {
         self.registers.write_byte(REG_A, value);
       }
 
-      Opcode::LoadImmIntoDe => {
+      /***** 16-bit Load *****/
+      Opcode::LoadImmIntoDe /* 0x11 */ => {
         let immediate = self.read_immediate_word();
 
         self.registers.write_word(REG_DE, immediate);
       }
 
-      Opcode::LoadImmIntoHl => {
+      Opcode::LoadImmIntoHl /* 0x21 */ => {
         let immediate = self.read_immediate_word();
 
         self.registers.write_word(REG_HL, immediate);
       }
 
-      Opcode::LoadImmIntoSp =>
-      {
+      Opcode::LoadImmIntoSp /* 0x31 */ => {
         let address = self.read_immediate_word();
 
         self.registers.set_stack_pointer(address);
       }
 
-      Opcode::PushBc => {
-        let bc = self.registers.read_word(REG_BC);
-
-        self.stack_push(bc);
-      }
-
-      Opcode::PopBc => {
+      Opcode::PopBc /* 0xC1 */ => {
         let value = self.stack_pop();
 
         self.registers.write_word(REG_BC, value);
       }
 
-      Opcode::DecrementA => {
-        self.registers.decrement_byte(REG_A);
+      Opcode::PushBc /* 0xC5 */ => {
+        let bc = self.registers.read_word(REG_BC);
+
+        self.stack_push(bc);
       }
 
-      Opcode::DecrementB => {
-        self.registers.decrement_byte(REG_B);
-      }
-
-      Opcode::DecrementC => {
-        self.registers.decrement_byte(REG_C);
-      }
-
-      Opcode::IncrementB => {
+      Opcode::IncrementB /* 0x04 */ => {
         self.registers.increment_byte(REG_B);
       }
 
-      Opcode::IncrementC => {
+      Opcode::IncrementC /* 0x0C */ => {
         self.registers.increment_byte(REG_C);
       }
 
-      Opcode::SubtractL => {
+      Opcode::DecrementB /* 0x05 */ => {
+        self.registers.decrement_byte(REG_B);
+      }
+
+      Opcode::DecrementC /* 0x0D */ => {
+        self.registers.decrement_byte(REG_C);
+      }
+
+      Opcode::DecrementA /* 0x3D */ => {
+        self.registers.decrement_byte(REG_A);
+      }
+
+      Opcode::SubtractL /* 0x95 */ => {
         let a = self.registers.read_byte(REG_A);
         let l = self.registers.read_byte(REG_L);
         let result = self.subtract(a, l);
@@ -310,7 +339,7 @@ impl<M: Memory> Cpu<M> {
         self.registers.write_byte(REG_A, result);
       }
 
-      Opcode::XorA => {
+      Opcode::XorA /* 0xAF */ => {
         let a = self.registers.read_byte(REG_A);
         let result = a ^ a;
 
@@ -318,27 +347,23 @@ impl<M: Memory> Cpu<M> {
         self.registers.write_byte(REG_A, result);
       }
 
-      Opcode::CompareImm => {
+      Opcode::CompareImm /* 0xFE */ => {
         let a = self.registers.read_byte(REG_A);
         let value = self.read_immediate_byte();
         let _ = self.subtract(a, value);
       }
 
-      Opcode::IncrementDe => {
+      /***** 16-bit Math *****/
+      Opcode::IncrementDe /* 0x13 */ => {
         self.registers.increment_word(REG_DE);
       }
 
-      Opcode::IncrementHl => {
+      Opcode::IncrementHl /* 0x23 */ => {
         self.registers.increment_word(REG_HL);
       }
 
-      Opcode::Special => {
-        let special_instruction = self.read_special_instruction();
-
-        self.execute_special_instruction(special_instruction);
-      }
-
-      Opcode::RotateLeftA => {
+      /***** 8-bit Shift/Rotate *****/
+      Opcode::RotateLeftA /* 0x17 */ => {
         let a = self.registers.read_byte(REG_A);
         let carry = self.registers.get_flag(CARRY_FLAG);
         let value = self.shift_left(a, carry);
@@ -350,20 +375,20 @@ impl<M: Memory> Cpu<M> {
 
   fn execute_special_instruction(&mut self, special_instruction: SpecialInstruction) {
     match special_instruction.opcode() {
-      SpecialOpcode::Bit7H => {
-        let h = self.registers.read_byte(REG_H);
-
-        self.registers.set_flag(ZERO_FLAG, (h & 0x80) == 0);
-        self.registers.set_flag(SUBTRACT_FLAG, false);
-        self.registers.set_flag(HALF_CARRY_FLAG, true);
-      }
-
-      SpecialOpcode::RotateLeftC => {
+      SpecialOpcode::RotateLeftC /* 0x11 */ => {
         let c = self.registers.read_byte(REG_C);
         let carry = self.registers.get_flag(CARRY_FLAG);
         let value = self.shift_left(c, carry);
 
         self.registers.write_byte(REG_C, value);
+      }
+
+      SpecialOpcode::Bit7H /* 0x7C */ => {
+        let h = self.registers.read_byte(REG_H);
+
+        self.registers.set_flag(ZERO_FLAG, (h & 0x80) == 0);
+        self.registers.set_flag(SUBTRACT_FLAG, false);
+        self.registers.set_flag(HALF_CARRY_FLAG, true);
       }
     }
   }
@@ -379,20 +404,9 @@ impl<M: Memory> Cpu<M> {
 
     result
   }
-
-  fn subtract(&mut self, a: u8, b: u8) -> u8 {
-    let result = a.wrapping_sub(b);
-
-    self.registers.set_flag(SUBTRACT_FLAG, true);
-    self.registers.set_flag(HALF_CARRY_FLAG, (a & 0xF) < (b & 0xF));
-    self.registers.set_flag(CARRY_FLAG, (a & 0xFF) < (b & 0xff));
-    self.registers.set_flag(ZERO_FLAG, result == 0);
-
-    result
-  }
 }
 
-impl<M: Memory> fmt::Debug for Cpu<M> {
+impl<M: Memory> fmt::Debug for Processor<M> {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     write!(f, "CPU Registers\n{:?}", self.registers)
   }

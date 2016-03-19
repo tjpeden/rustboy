@@ -3,7 +3,8 @@ extern crate num;
 #[macro_use]
 extern crate enum_primitive;
 
-mod cpu;
+mod processor;
+mod display;
 mod game_boy;
 mod memory;
 mod io_ports;
