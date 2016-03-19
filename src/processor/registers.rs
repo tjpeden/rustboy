@@ -5,6 +5,7 @@ use super::super::memory::Memory;
 
 const NUM_GPR: usize = 8;
 
+#[derive(Copy, Clone)]
 pub struct ByteRegister(usize);
 
 impl From<u16> for ByteRegister {
@@ -142,37 +143,37 @@ impl Registers {
   }
 
   pub fn increment_byte(&mut self, register: ByteRegister) {
-    let ByteRegister(index) = register;
-    let previous = self.value[index];
+    let previous = self.read_byte(register);
+    let result = previous.wrapping_add(1);
 
-    self.set_flag(ZERO_FLAG, previous + 1 == 0);
+    self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(SUBTRACT_FLAG, false);
-    self.set_flag(HALF_CARRY_FLAG, ((previous & 0xF) + 1) & 0x10 != 0);
+    self.set_flag(HALF_CARRY_FLAG, ((previous & 0xF).wrapping_add(1)) & 0x10 != 0);
 
-    self.value[index] += 1;
+    self.write_byte(register, result);
   }
 
   pub fn decrement_byte(&mut self, register: ByteRegister) {
-    let ByteRegister(index) = register;
-    let previous = self.value[index];
+    let previous = self.read_byte(register);
+    let result = previous.wrapping_sub(1);
 
-    self.set_flag(ZERO_FLAG, (previous - 1) == 0);
+    self.set_flag(ZERO_FLAG, result == 0);
     self.set_flag(SUBTRACT_FLAG, true);
-    self.set_flag(HALF_CARRY_FLAG, ((previous & 0xF) - 1) & 0x10 != 0);
+    self.set_flag(HALF_CARRY_FLAG, ((previous & 0xF).wrapping_sub(1)) & 0x10 != 0);
 
-    self.value[index] -= 1;
+    self.write_byte(register, result);
   }
 
   pub fn increment_word(&mut self, register: WordRegister) {
     let value = self.read_word(register);
 
-    self.write_word(register, value + 1);
+    self.write_word(register, value.wrapping_add(1));
   }
 
   pub fn decrement_word(&mut self, register: WordRegister) {
     let value = self.read_word(register);
 
-    self.write_word(register, value - 1);
+    self.write_word(register, value.wrapping_sub(1));
   }
 
   pub fn transfer_byte(&mut self, from: ByteRegister, to: ByteRegister) {
