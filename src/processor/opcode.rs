@@ -8,9 +8,16 @@ enum_from_primitive! {
     Special = 0xCB,
 
     // Flow Control
+    Jump = 0xC3,
+    JumpNonZero = 0xC2,
+    JumpZero = 0xCA,
+    JumpNonCarry = 0xD2,
+    JumpCarry = 0xDA,
     JumpRelative = 0x18,
     JumpRelativeNonZero = 0x20,
     JumpRelativeZero = 0x28,
+    JumpRelativeNonCarry = 0x30,
+    JumpRelativeCarry = 0x38,
     Return = 0xC9,
     CallAddrImm = 0xCD,
 

@@ -21,7 +21,7 @@ impl GameBoy {
     let mut tick = 0;
     loop {
       self.processor.step();
-      print!("GameBoy:\n{:?}", self.processor);
+      print!("GameBoy: {}\n{:?}", tick, self.processor);
       tick += 1;
     }
   }

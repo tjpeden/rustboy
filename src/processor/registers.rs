@@ -165,12 +165,20 @@ impl Registers {
 
   pub fn increment_word(&mut self, register: WordRegister) {
     let value = self.read_word(register);
+
     self.write_word(register, value + 1);
   }
 
   pub fn decrement_word(&mut self, register: WordRegister) {
     let value = self.read_word(register);
+
     self.write_word(register, value - 1);
+  }
+
+  pub fn transfer_byte(&mut self, from: ByteRegister, to: ByteRegister) {
+    let value = self.read_byte(from);
+
+    self.write_byte(to, value);
   }
 }
 

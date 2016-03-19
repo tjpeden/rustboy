@@ -10,6 +10,5 @@
 
     "rust.racerPath": "C:\\Users\\PedenT\\.cargo\\bin\\racer.exe",
     "rust.rustLangSrcPath": "C:\\Users\\PedenT\\Documents\\code\\rustc-1.7.0\\src",
-    "rust.rustfmtPath": "C:\\Users\\PedenT\\.cargo\\bin\\rustfmt.exe"//,
-    // "rust.checkOnSave": true
+    "rust.rustfmtPath": "C:\\Users\\PedenT\\.cargo\\bin\\rustfmt.exe"
 }

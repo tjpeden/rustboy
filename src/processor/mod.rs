@@ -107,27 +107,33 @@ impl<M: Memory> Processor<M> {
       }
 
       /***** Flow Control *****/
+      Opcode::Jump /* 0xC3 */ => {
+        let value = self.read_immediate_word();
+
+        self.registers.set_program_counter(value);
+      }
+
+      Opcode::JumpNonZero /* 0xC2 */ => { self.jump_conditionally(ZERO_FLAG, false); }
+
+      Opcode::JumpZero /* 0xCA */ => { self.jump_conditionally(ZERO_FLAG, true); }
+
+      Opcode::JumpNonCarry /* 0xD2 */ => { self.jump_conditionally(CARRY_FLAG, false); }
+
+      Opcode::JumpCarry /* 0xDA */ => { self.jump_conditionally(CARRY_FLAG, true); }
+
       Opcode::JumpRelative /* 0x18 */ => {
         let offset = self.read_immediate_byte();
 
         self.registers.increment_program_counter((offset as i8) as i16);
       }
 
-      Opcode::JumpRelativeNonZero /* 0x20 */ => {
-        let offset = self.read_immediate_byte();
+      Opcode::JumpRelativeNonZero /* 0x20 */ => { self.jump_relative_conditionally(ZERO_FLAG, false); }
 
-        if !self.registers.get_flag(ZERO_FLAG) {
-          self.registers.increment_program_counter((offset as i8) as i16);
-        }
-      }
+      Opcode::JumpRelativeZero /* 0x28 */ => { self.jump_relative_conditionally(ZERO_FLAG, true); }
 
-      Opcode::JumpRelativeZero /* 0x28 */ => {
-        let offset = self.read_immediate_byte();
+      Opcode::JumpRelativeNonCarry /* 0x30 */ => { self.jump_relative_conditionally(CARRY_FLAG, false); }
 
-        if self.registers.get_flag(ZERO_FLAG) {
-          self.registers.increment_program_counter((offset as i8) as i16);
-        }
-      }
+      Opcode::JumpRelativeCarry /* 0x38 */ => { self.jump_relative_conditionally(CARRY_FLAG, true); }
 
       Opcode::Return /* 0xC9 */ => {
         let value = self.stack_pop();
@@ -144,59 +150,23 @@ impl<M: Memory> Processor<M> {
       }
 
       /***** 8-bit Load *****/
-      Opcode::LoadAIntoC /* 0x4F */ => {
-        let a = self.registers.read_byte(REG_A);
+      Opcode::LoadAIntoC /* 0x4F */ => { self.registers.transfer_byte(REG_A, REG_C); }
 
-        self.registers.write_byte(REG_C, a);
-      }
+      Opcode::LoadAIntoD /* 0x57 */ => { self.registers.transfer_byte(REG_A, REG_D); }
 
-      Opcode::LoadAIntoD /* 0x57 */ => {
-        let a = self.registers.read_byte(REG_A);
+      Opcode::LoadAIntoH /* 0x67 */ => { self.registers.transfer_byte(REG_A, REG_H); }
 
-        self.registers.write_byte(REG_D, a);
-      }
+      Opcode::LoadEIntoA /* 0x7B */ => { self.registers.transfer_byte(REG_E, REG_A); }
 
-      Opcode::LoadAIntoH /* 0x67 */ => {
-        let a = self.registers.read_byte(REG_A);
+      Opcode::LoadImmIntoB /* 0x06 */ => { self.load_immediate_byte(REG_B); }
 
-        self.registers.write_byte(REG_H, a);
-      }
+      Opcode::LoadImmIntoC /* 0x0E */ => { self.load_immediate_byte(REG_C); }
 
-      Opcode::LoadEIntoA /* 0x7B */ => {
-        let e = self.registers.read_byte(REG_E);
+      Opcode::LoadImmIntoE /* 0x1E */ => { self.load_immediate_byte(REG_E); }
 
-        self.registers.write_byte(REG_A, e);
-      }
+      Opcode::LoadImmIntoL /* 0x2E */ => { self.load_immediate_byte(REG_L); }
 
-      Opcode::LoadImmIntoB /* 0x06 */ => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_B, value);
-      }
-
-      Opcode::LoadImmIntoC /* 0x0E */ => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_C, value);
-      }
-
-      Opcode::LoadImmIntoE /* 0x1E */ => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_E, value);
-      }
-
-      Opcode::LoadImmIntoL /* 0x2E */ => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_L, value);
-      }
-
-      Opcode::LoadImmIntoA /* 0x3E */ => {
-        let value = self.read_immediate_byte();
-
-        self.registers.write_byte(REG_A, value);
-      }
+      Opcode::LoadImmIntoA /* 0x3E */ => { self.load_immediate_byte(REG_A); }
 
       Opcode::LoadAIntoAddrC /* 0xE2 */ => {
         let a = self.registers.read_byte(REG_A);
@@ -206,47 +176,17 @@ impl<M: Memory> Processor<M> {
         self.memory.write_byte(address, a);
       }
 
-      Opcode::LoadAIntoAddrBc /* 0x02 */ => {
-        let a = self.registers.read_byte(REG_A);
-        let bc = self.registers.read_word(REG_BC);
-        let address = M::B::from(bc);
+      Opcode::LoadAIntoAddrBc /* 0x02 */ => { self.transfer_to_address(REG_A, REG_BC); }
 
-        self.memory.write_byte(address, a);
-      }
+      Opcode::LoadAIntoAddrHl /* 0x77 */ => { self.transfer_to_address(REG_A, REG_HL); }
 
-      Opcode::LoadAIntoAddrHl /* 0x77 */ => {
-        let a = self.registers.read_byte(REG_A);
-        let hl = self.registers.read_word(REG_HL);
-        let address = M::B::from(hl);
+      Opcode::LoadAddrBcIntoA /* 0x0A */ => { self.transfer_from_address(REG_BC, REG_A); }
 
-        self.memory.write_byte(address, a);
-      }
+      Opcode::LoadAddrDeIntoA /* 0x1A */ => { self.transfer_from_address(REG_DE, REG_A); }
 
-      Opcode::LoadAddrBcIntoA /* 0x0A */ => {
-        let bc = self.registers.read_word(REG_BC);
-        let address = M::B::from(bc);
-        let value = self.memory.read_byte(address);
+      Opcode::LoadAIntoAddrImm /* 0xEA */ => { self.transfer_to_immediate_address(REG_A); }
 
-        self.registers.write_byte(REG_A, value);
-      }
-
-      Opcode::LoadAddrDeIntoA /* 0x1A */ => {
-        let de = self.registers.read_word(REG_DE);
-        let address = M::B::from(de);
-        let value = self.memory.read_byte(address);
-
-        self.registers.write_byte(REG_A, value);
-      }
-
-      Opcode::LoadAIntoAddrImm /* 0xEA */ => {
-        let a = self.registers.read_byte(REG_A);
-        let value = self.read_immediate_word();
-        let address = M::B::from(value);
-
-        self.memory.write_byte(address, a);
-      }
-
-      Opcode::LoadAintoAddrHlAndInc /* 0x22 */ => {
+      Opcode::LoadAIntoAddrHlAndInc /* 0x22 */ => {
         let a = self.registers.read_byte(REG_A);
         let hl = self.registers.read_word(REG_HL);
         let address = M::B::from(hl);
@@ -311,25 +251,15 @@ impl<M: Memory> Processor<M> {
         self.stack_push(bc);
       }
 
-      Opcode::IncrementB /* 0x04 */ => {
-        self.registers.increment_byte(REG_B);
-      }
+      Opcode::IncrementB /* 0x04 */ => { self.registers.increment_byte(REG_B); }
 
-      Opcode::IncrementC /* 0x0C */ => {
-        self.registers.increment_byte(REG_C);
-      }
+      Opcode::IncrementC /* 0x0C */ => { self.registers.increment_byte(REG_C); }
 
-      Opcode::DecrementB /* 0x05 */ => {
-        self.registers.decrement_byte(REG_B);
-      }
+      Opcode::DecrementB /* 0x05 */ => { self.registers.decrement_byte(REG_B); }
 
-      Opcode::DecrementC /* 0x0D */ => {
-        self.registers.decrement_byte(REG_C);
-      }
+      Opcode::DecrementC /* 0x0D */ => { self.registers.decrement_byte(REG_C); }
 
-      Opcode::DecrementA /* 0x3D */ => {
-        self.registers.decrement_byte(REG_A);
-      }
+      Opcode::DecrementA /* 0x3D */ => { self.registers.decrement_byte(REG_A); }
 
       Opcode::SubtractL /* 0x95 */ => {
         let a = self.registers.read_byte(REG_A);
@@ -403,6 +333,60 @@ impl<M: Memory> Processor<M> {
     self.registers.set_flag(CARRY_FLAG, carry);
 
     result
+  }
+
+  fn subtract(&mut self, a: u8, b: u8) -> u8 {
+    let result = a.wrapping_sub(b);
+
+    self.registers.set_flag(SUBTRACT_FLAG, true);
+    self.registers.set_flag(HALF_CARRY_FLAG, (a & 0xF) < (b & 0xF));
+    self.registers.set_flag(CARRY_FLAG, (a & 0xFF) < (b & 0xff));
+    self.registers.set_flag(ZERO_FLAG, result == 0);
+
+    result
+  }
+
+  fn load_immediate_byte(&mut self, register: ByteRegister) {
+    let value = self.read_immediate_byte();
+
+    self.registers.write_byte(register, value);
+  }
+
+  fn transfer_to_immediate_address(&mut self, from: ByteRegister) {
+    let address = M::B::from(self.read_immediate_word());
+    let value = self.registers.read_byte(from);
+
+    self.memory.write_byte(address, value);
+  }
+
+  fn transfer_to_address(&mut self, from: ByteRegister, to: WordRegister) {
+    let value = self.registers.read_byte(from);
+    let address = M::B::from(self.registers.read_word(to));
+
+    self.memory.write_byte(address, value);
+  }
+
+  fn transfer_from_address(&mut self, from: WordRegister, to: ByteRegister) {
+    let address = M::B::from(self.registers.read_word(from));
+    let value = self.memory.read_byte(address);
+
+    self.registers.write_byte(to, value);
+  }
+
+  fn jump_conditionally(&mut self, flag: u8, condition: bool) {
+    let value = self.read_immediate_word();
+
+    if self.registers.get_flag(flag) == condition {
+      self.registers.set_program_counter(value);
+    }
+  }
+
+  fn jump_relative_conditionally(&mut self, flag: u8, condition: bool) {
+    let offset = self.read_immediate_byte();
+
+    if self.registers.get_flag(flag) == condition {
+      self.registers.increment_program_counter((offset as i8) as i16);
+    }
   }
 }
 
